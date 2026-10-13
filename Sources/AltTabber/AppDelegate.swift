@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
     private var thumbnailTask: Task<Void, Never>?
     private var shortcutRecoveryTask: Task<Void, Never>?
+    private var switchOriginWindowID: CGWindowID?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureModel()
@@ -38,11 +39,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func configureModel() {
         model.onCommit = { [weak self] item in
-            self?.panelController.hide()
-            _ = self?.windowService.focus(item)
+            guard let self else { return }
+            thumbnailTask?.cancel()
+            thumbnailTask = nil
+            panelController.hide()
+            let originWindowID = switchOriginWindowID
+            switchOriginWindowID = nil
+            if windowService.focus(item) {
+                var invalidatedWindowIDs: Set<CGWindowID> = [item.id]
+                if let originWindowID {
+                    invalidatedWindowIDs.insert(originWindowID)
+                }
+                windowService.invalidateThumbnails(for: invalidatedWindowIDs)
+            }
         }
         model.onCancel = { [weak self] in
             self?.panelController.hide()
+            self?.switchOriginWindowID = nil
         }
 
         shortcutMonitor.onCycle = { [weak self] backwards in
@@ -155,12 +168,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func cycle(backwards: Bool) {
         if !panelController.isVisible {
-            let windows = windowService.visibleWindows()
-            model.replaceWindows(windows)
-            panelController.show()
-            loadThumbnails(for: windows)
+            presentSwitcher()
         }
         model.cycle(backwards: backwards)
+    }
+
+    private func presentSwitcher() {
+        let windows = windowService.visibleWindows()
+        switchOriginWindowID = windows.first?.id
+        model.replaceWindows(windows)
+        panelController.show()
+        loadThumbnails(for: windows)
     }
 
     private func loadThumbnails(for windows: [WindowItem]) {
@@ -194,10 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func showFromMenu() {
-        let windows = windowService.visibleWindows()
-        model.replaceWindows(windows)
-        panelController.show()
-        loadThumbnails(for: windows)
+        presentSwitcher()
     }
 
     @objc private func showSettings() {

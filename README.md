@@ -45,6 +45,7 @@ AltTabber puts every window on equal footing:
 
 - **Real window switching** — each open window gets its own card.
 - **Live visual previews** — recognize content before reading a title.
+- **Fast repeat launches** — previews are cached for ten minutes, while switched windows refresh immediately.
 - **Useful titles** — see `Downloads`, document names, and active browser-window titles.
 - **Multi-row grid** — scan many windows without an endless horizontal carousel.
 - **Native performance** — built entirely with Apple frameworks.

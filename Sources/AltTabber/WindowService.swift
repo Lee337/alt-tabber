@@ -25,6 +25,7 @@ private struct ThumbnailCapture: @unchecked Sendable {
 @MainActor
 final class WindowService {
     private let logger = Logger(subsystem: "com.local.AltTabber", category: "WindowPreviews")
+    private let thumbnailCache = ThumbnailCache()
     private let ignoredOwners = Set([
         "AltTabber", "Dock", "Window Server", "Control Center", "Notification Center"
     ])
@@ -92,6 +93,25 @@ final class WindowService {
             return ThumbnailLoadResult(images: [], titles: [:], failureDescription: nil)
         }
 
+        thumbnailCache.removeExpiredEntries()
+        var cachedImages: [(CGWindowID, NSImage)] = []
+        var uncachedItems: [WindowItem] = []
+        for item in items {
+            if let image = thumbnailCache.image(for: item) {
+                cachedImages.append((item.id, image))
+            } else {
+                uncachedItems.append(item)
+            }
+        }
+
+        guard !uncachedItems.isEmpty else {
+            return ThumbnailLoadResult(
+                images: cachedImages,
+                titles: [:],
+                failureDescription: nil
+            )
+        }
+
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(
                 true,
@@ -109,6 +129,9 @@ final class WindowService {
                    !title.isEmpty {
                     titles[item.id] = title
                 }
+            }
+            for item in uncachedItems {
+                guard !Task.isCancelled, let window = captureWindows[item.id] else { continue }
                 requests.append(ThumbnailCaptureRequest(
                     windowID: item.id,
                     bounds: item.bounds,
@@ -117,11 +140,15 @@ final class WindowService {
             }
 
             let captures = await captureThumbnails(requests)
-            var results: [(CGWindowID, NSImage)] = []
+            var results = cachedImages
             var lastFailureDescription: String?
+            let itemsByID = Dictionary(uniqueKeysWithValues: uncachedItems.map { ($0.id, $0) })
             for capture in captures {
-                if let image = capture.image {
-                    results.append((capture.windowID, NSImage(cgImage: image, size: .zero)))
+                guard !Task.isCancelled else { break }
+                if let image = capture.image, let item = itemsByID[capture.windowID] {
+                    let thumbnail = NSImage(cgImage: image, size: .zero)
+                    thumbnailCache.insert(thumbnail, for: item)
+                    results.append((capture.windowID, thumbnail))
                 } else if let failureDescription = capture.failureDescription {
                     lastFailureDescription = failureDescription
                     logger.error("Preview capture failed for window \(capture.windowID): \(failureDescription, privacy: .public)")
@@ -138,8 +165,16 @@ final class WindowService {
             return ThumbnailLoadResult(images: results, titles: titles, failureDescription: nil)
         } catch {
             logger.error("Window preview discovery failed: \(error.localizedDescription, privacy: .public)")
-            return ThumbnailLoadResult(images: [], titles: [:], failureDescription: error.localizedDescription)
+            return ThumbnailLoadResult(
+                images: cachedImages,
+                titles: [:],
+                failureDescription: cachedImages.isEmpty ? error.localizedDescription : nil
+            )
         }
+    }
+
+    func invalidateThumbnails(for windowIDs: Set<CGWindowID>) {
+        thumbnailCache.invalidate(windowIDs: windowIDs)
     }
 
     @discardableResult
