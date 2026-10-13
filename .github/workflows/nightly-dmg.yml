@@ -1,0 +1,77 @@
+name: Nightly DMG
+
+on:
+  schedule:
+    # 02:17 UTC every day. GitHub may delay scheduled jobs during busy periods.
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-dmg
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test and package universal DMG
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set nightly build number
+        run: /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${GITHUB_RUN_NUMBER}" Resources/Info.plist
+
+      - name: Run tests
+        run: make test
+
+      - name: Build universal DMG
+        run: make dmg
+
+      - name: Prepare nightly artifacts
+        run: |
+          version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
+          mv "dist/AltTabber-v${version}-macOS.dmg" dist/AltTabber-nightly-macOS.dmg
+          cd dist
+          shasum -a 256 AltTabber-nightly-macOS.dmg > AltTabber-nightly-SHA256.txt
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AltTabber-nightly-macOS
+          path: |
+            dist/AltTabber-nightly-macOS.dmg
+            dist/AltTabber-nightly-SHA256.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish rolling nightly prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_notes="Automated universal macOS nightly from commit ${GITHUB_SHA}. This build is ad-hoc signed, not notarized, and may be less stable than the latest numbered release."
+
+          if gh release view nightly --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release edit nightly \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "AltTabber Nightly" \
+              --prerelease \
+              --notes "${release_notes}"
+          else
+            gh release create nightly \
+              --repo "${GITHUB_REPOSITORY}" \
+              --target "${GITHUB_SHA}" \
+              --title "AltTabber Nightly" \
+              --prerelease \
+              --notes "${release_notes}"
+          fi
+
+          gh release upload nightly \
+            dist/AltTabber-nightly-macOS.dmg \
+            dist/AltTabber-nightly-SHA256.txt \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber

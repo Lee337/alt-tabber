@@ -11,6 +11,7 @@
   ![Universal](https://img.shields.io/badge/Apple_silicon_%2B_Intel-Universal-555555?style=for-the-badge&logo=apple)
   ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=for-the-badge&logo=swift&logoColor=white)
   ![Version 0.5.4](https://img.shields.io/badge/version-0.5.4-007AFF?style=for-the-badge)
+  [![Nightly DMG](https://github.com/Lee337/alt-tabber/actions/workflows/nightly-dmg.yml/badge.svg)](https://github.com/Lee337/alt-tabber/actions/workflows/nightly-dmg.yml)
 
   <br><br>
 
@@ -34,6 +35,12 @@ Download the disk image and install AltTabber the familiar Mac way:
 3. Open AltTabber from Applications and grant Accessibility and Screen Recording access when requested.
 
 Prefer another format? Download the [PKG installer](https://github.com/Lee337/alt-tabber/releases/latest/download/AltTabber-v0.5.4-macOS.pkg) or [portable ZIP](https://github.com/Lee337/alt-tabber/releases/latest/download/AltTabber-v0.5.4-macOS.zip).
+
+### Nightly builds
+
+Want the newest changes? [Download the latest nightly DMG](https://github.com/Lee337/alt-tabber/releases/download/nightly/AltTabber-nightly-macOS.dmg). GitHub automatically tests and packages a universal Apple silicon + Intel build every night from `main`. The permanent link always points to the newest successful build.
+
+Nightlies are early builds and may be less stable than the numbered release. Each run is also retained as a downloadable [GitHub Actions artifact](https://github.com/Lee337/alt-tabber/actions/workflows/nightly-dmg.yml) for 30 days.
 
 > [!IMPORTANT]
 > This early release is ad-hoc signed and is not yet notarized by Apple. On first launch, Control-click **AltTabber** in Applications and choose **Open**. If macOS still blocks it, use **System Settings → Privacy & Security → Open Anyway**. A Developer ID-signed and notarized release is planned.
