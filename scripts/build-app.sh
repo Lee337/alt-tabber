@@ -29,4 +29,8 @@ else
     codesign --force --deep --options runtime --sign "$SIGNING_IDENTITY" "$APP_DIR"
 fi
 
+# Finder displays the app bundle directory's modification date. Reusing the
+# bundle leaves that timestamp stale even though its executable was replaced.
+/usr/bin/touch "$APP_DIR"
+
 echo "$APP_DIR"

@@ -77,6 +77,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         let menu = NSMenu()
+        let versionItem = NSMenuItem(title: versionMenuTitle, action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
+        menu.addItem(.separator())
+
         let showItem = NSMenuItem(title: "Show Window Switcher", action: #selector(showFromMenu), keyEquivalent: "")
         showItem.target = self
         menu.addItem(showItem)
@@ -121,6 +126,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.launchAtLoginMenuItem?.state = enabled ? .on : .off
             }
             .store(in: &cancellables)
+    }
+
+    private var versionMenuTitle: String {
+        let version = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String ?? "Unknown"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        if let build, !build.isEmpty {
+            return "AltTabber \(version) (\(build))"
+        }
+        return "AltTabber \(version)"
     }
 
     private func startShortcutMonitor(promptIfNeeded: Bool) {
