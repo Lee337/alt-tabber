@@ -1,61 +1,165 @@
-# AltTabber
+<div align="center">
+  <img src="Resources/AppIcon.png" width="160" alt="AltTabber app icon">
 
-A small, native macOS window switcher inspired by AltTab and DockDoor. Hold **Option** and tap **Tab** to cycle through individual windows, then release Option to focus the selected window.
+  # AltTabber
 
-## Features
+  **A fast, visual window switcher for macOS.**
 
-- Switches between individual windows instead of only applications
-- Live window previews using ScreenCaptureKit
-- Permission-independent global **Option-Tab** shortcut, with **Shift-Option-Tab** for reverse cycling
-- Clickable window cards
-- Configurable wrapping grid or horizontal-strip layouts
-- Adjustable grid columns, preview sizes, and window-title visibility
-- Compact landscape preview tiles with automatic keyboard-selection scrolling
-- Multi-display aware overlay (it appears on the display under the pointer)
-- Menu-bar controls and Launch at Login
-- Native Swift/AppKit/SwiftUI implementation with no third-party dependencies
-- Custom layered-window app icon with complete macOS Retina assets
+  Switch between the windows you actually want—not just the apps that own them.
 
-## Requirements
+  ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111111?style=for-the-badge&logo=apple)
+  ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=for-the-badge&logo=swift&logoColor=white)
+  ![Version 0.5.4](https://img.shields.io/badge/version-0.5.4-007AFF?style=for-the-badge)
+
+  <br><br>
+
+  [![Download AltTabber](https://img.shields.io/badge/Download_AltTabber-v0.5.4-007AFF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Lee337/alt-tabber/releases/latest/download/AltTabber-v0.5.4-macOS.zip)
+</div>
+
+---
+
+AltTabber brings a visual, window-first workflow to **Option-Tab**. Hold **Option**, tap **Tab** to move through live previews, then release **Option** to bring the selected window forward.
+
+No Electron. No web runtime. Just native Swift, AppKit, SwiftUI, and ScreenCaptureKit.
+
+## Download
+
+Download the latest ready-to-run build:
+
+### [Download AltTabber v0.5.4 for macOS](https://github.com/Lee337/alt-tabber/releases/latest/download/AltTabber-v0.5.4-macOS.zip)
+
+1. Download and unzip the archive.
+2. Move **AltTabber.app** into your **Applications** folder.
+3. Control-click the app and choose **Open** on first launch.
+4. Grant Accessibility and Screen Recording access when macOS requests them.
+
+> [!IMPORTANT]
+> This early release is ad-hoc signed and is not yet notarized by Apple. macOS may show a security warning on first launch. If your Mac refuses to open it, build from source below. A Developer ID-signed and notarized release is planned.
+
+## Why AltTabber?
+
+macOS normally switches between applications. That becomes awkward when one app has several windows—a Downloads folder, two browser windows, a project in Xcode, and a document you were editing five minutes ago.
+
+AltTabber puts every window on equal footing:
+
+- **Real window switching** — each open window gets its own card.
+- **Live visual previews** — recognize content before reading a title.
+- **Useful titles** — see `Downloads`, document names, and active browser-window titles.
+- **Multi-row grid** — scan many windows without an endless horizontal carousel.
+- **Native performance** — built entirely with Apple frameworks.
+- **Your preferred layout** — choose a wrapping grid or horizontal strip.
+
+## Highlights
+
+| | Feature | What it gives you |
+|---|---|---|
+| 🪟 | Window-first switching | Move between individual windows instead of application groups |
+| 🖼️ | Live previews | ScreenCaptureKit thumbnails captured concurrently for every eligible window |
+| ⌨️ | Familiar shortcut | `⌥ Tab` forward, `⇧ ⌥ Tab` backward, release `⌥` to select |
+| 🧩 | Flexible layouts | Configurable grid columns, horizontal mode, and three preview sizes |
+| 🖥️ | Multi-display support | The switcher appears on the display under your pointer |
+| 🚀 | Launch at Login | Keep AltTabber ready from the moment you sign in |
+| 🎯 | Clickable cards | Keyboard when you want speed; pointer when you want precision |
+
+## Build from source
+
+### Requirements
 
 - macOS 14 or newer
-- Swift 6 / Xcode Command Line Tools
-- Accessibility permission for focusing a specific window (the Option-Tab shortcut itself does not require it)
-- Screen Recording permission for live previews (the switcher still works with app icons without it)
+- Xcode or the Swift 6 command-line toolchain
 
-## Build and run
+### Build and launch
 
 ```sh
+git clone https://github.com/Lee337/alt-tabber.git
+cd alt-tabber
 make test
 make app
 open dist/AltTabber.app
 ```
 
-On first launch, approve **Accessibility** when macOS asks. Use the menu-bar window icon to request Accessibility or Screen Recording access again. Permission changes may require restarting AltTabber.
+The generated application is available at `dist/AltTabber.app`.
 
-Automatic Accessibility and Screen Recording prompts are shown at most once. If access is later revoked, AltTabber reports the missing permission without repeatedly opening a macOS prompt; use **Settings…** or the menu-bar permission actions to request it again.
-
-The menu-bar menu and Settings window show the current Option-Tab shortcut status. AltTabber automatically retries the shortcut listener after Accessibility access is granted, so a restart normally is not required for that permission.
-
-Choose **Settings…** from the menu-bar icon to customize the switcher. The default is a four-column wrapping grid; the original horizontal strip remains available as an option.
-
-The generated app is ad-hoc signed and intended for local use. A distributable release should use an Apple Developer ID certificate, hardened runtime, and notarization.
-
-If full Xcode is installed at `/Applications/Xcode.app`, the build scripts select it automatically. This avoids failures when an older Command Line Tools installation is still active.
+> [!NOTE]
+> Local builds are ad-hoc signed. For distribution outside your Mac, use an Apple Developer ID certificate, the hardened runtime, and notarization.
 
 ## Controls
 
 | Action | Shortcut |
-| --- | --- |
-| Cycle forward | Option-Tab |
-| Cycle backward | Shift-Option-Tab |
-| Select | Release Option |
-| Cancel | Escape |
+|---|---|
+| Open and cycle forward | `⌥ Tab` |
+| Cycle backward | `⇧ ⌥ Tab` |
+| Switch to selected window | Release `⌥` |
+| Cancel | `Esc` |
+| Open without the shortcut | Menu bar → **Show Window Switcher** |
 
-## Project layout
+## Make it yours
 
-- `WindowService.swift`: discovers, captures, and focuses macOS windows
-- `GlobalShortcutMonitor.swift`: registers Option-Tab with macOS and tracks Option release
-- `SwitcherPanelController.swift`: manages the non-activating overlay
-- `SwitcherView.swift`: renders preview cards in SwiftUI
-- `scripts/build-app.sh`: creates a local `.app` bundle
+Open **Settings…** from the menu-bar icon to configure:
+
+- Grid or horizontal layout
+- Two to six grid columns
+- Compact, standard, or large previews
+- Window-title visibility
+- Launch at Login
+
+The default layout is a four-column wrapping grid designed to keep a large window collection readable at a glance.
+
+## Permissions
+
+AltTabber asks only for the macOS permissions required by its native features:
+
+| Permission | Used for | Without it |
+|---|---|---|
+| **Accessibility** | Raising and focusing the exact selected window | AltTabber can activate the app, but exact window focus may be limited |
+| **Screen Recording** | Capturing live window thumbnails and richer titles | Window cards fall back to application icons |
+
+Permission prompts are not repeatedly opened when access is missing. Use the menu-bar permission actions or **Settings…** to request access again.
+
+After changing either permission, quit and reopen AltTabber so macOS refreshes the authorization state.
+
+### If Screen Recording looks enabled but previews are missing
+
+Local macOS privacy records can become stale after an application is rebuilt or re-signed. Remove the existing AltTabber entry from:
+
+**System Settings → Privacy & Security → Screen & System Audio Recording**
+
+Then add `/Applications/AltTabber.app` again, enable it, and relaunch AltTabber.
+
+## Project structure
+
+```text
+Sources/AltTabber/
+├── AppDelegate.swift              App lifecycle, menu bar, and orchestration
+├── GlobalShortcutMonitor.swift    Native Option-Tab registration
+├── WindowService.swift            Window discovery, previews, titles, and focus
+├── SwitcherPanelController.swift  Multi-display overlay positioning
+├── SwitcherModel.swift            Selection and window state
+├── SwitcherView.swift             SwiftUI window grid and cards
+├── SettingsView.swift             Appearance and permission settings
+└── AppSettings.swift              Persistent preferences and runtime status
+```
+
+The project uses Swift Package Manager and has no third-party runtime dependencies.
+
+## Development
+
+```sh
+make build   # Debug build
+make test    # Run the test suite
+make app     # Create a signed release app bundle
+make run     # Build and open the app
+make clean   # Remove local build output
+```
+
+If full Xcode is installed at `/Applications/Xcode.app`, the build scripts select it automatically to avoid conflicts with an older standalone Command Line Tools installation.
+
+## Status
+
+AltTabber is an actively evolving personal utility. Expect the core workflow to work, but treat the current releases as early builds while shortcut behavior, capture performance, and permission handling continue to mature.
+
+Ideas, bug reports, and pull requests are welcome.
+
+<div align="center">
+  <sub>Built for people with more windows open than they care to admit.</sub>
+</div>
