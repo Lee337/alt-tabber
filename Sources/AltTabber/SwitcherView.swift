@@ -51,7 +51,7 @@ struct SwitcherView: View {
 
     private var gridColumns: [GridItem] {
         Array(
-            repeating: GridItem(.fixed(settings.previewSize.width), spacing: spacing),
+            repeating: GridItem(.fixed(model.previewWidth), spacing: spacing),
             count: model.gridColumnCount
         )
     }
@@ -72,15 +72,21 @@ struct SwitcherView: View {
     }
 
     private var horizontalStrip: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: spacing) {
-                    windowCards
+        GeometryReader { geometry in
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: spacing) {
+                        windowCards
+                    }
+                    .padding(4)
+                    .frame(
+                        minWidth: max(0, geometry.size.width - 8),
+                        alignment: .center
+                    )
                 }
-                .padding(4)
-            }
-            .onChange(of: model.selectedIndex) { _, newIndex in
-                scrollToSelection(newIndex, using: proxy)
+                .onChange(of: model.selectedIndex) { _, newIndex in
+                    scrollToSelection(newIndex, using: proxy)
+                }
             }
         }
     }
@@ -91,6 +97,7 @@ struct SwitcherView: View {
             WindowCard(
                 item: item,
                 isSelected: index == model.selectedIndex,
+                previewSize: CGSize(width: model.previewWidth, height: model.previewHeight),
                 settings: settings
             )
             .id(item.id)
@@ -112,6 +119,7 @@ struct SwitcherView: View {
 private struct WindowCard: View {
     let item: WindowItem
     let isSelected: Bool
+    let previewSize: CGSize
     @ObservedObject var settings: AppSettings
 
     var body: some View {
@@ -119,7 +127,7 @@ private struct WindowCard: View {
             preview
             metadata
         }
-        .frame(width: settings.previewSize.width)
+        .frame(width: previewSize.width)
         .background(Color.white.opacity(isSelected ? 0.11 : 0.055))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
@@ -156,7 +164,7 @@ private struct WindowCard: View {
                     .shadow(color: .black.opacity(0.28), radius: 7, y: 3)
             }
         }
-        .frame(width: settings.previewSize.width, height: settings.previewSize.height)
+        .frame(width: previewSize.width, height: previewSize.height)
         .clipped()
     }
 

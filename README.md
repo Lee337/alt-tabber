@@ -48,6 +48,7 @@ AltTabber puts every window on equal footing:
 - **Fast repeat launches** — previews are cached for ten minutes, while switched windows refresh immediately.
 - **Useful titles** — see `Downloads`, document names, and active browser-window titles.
 - **Multi-row grid** — scan many windows without an endless horizontal carousel.
+- **Adaptive sizing** — the switcher uses more of your display and enlarges previews when fewer windows are open.
 - **Native performance** — built entirely with Apple frameworks.
 - **Your preferred layout** — choose a wrapping grid or horizontal strip.
 

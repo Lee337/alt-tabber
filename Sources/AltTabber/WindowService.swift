@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import Darwin
 import OSLog
 import ScreenCaptureKit
 
@@ -22,8 +23,69 @@ private struct ThumbnailCapture: @unchecked Sendable {
     let failureDescription: String?
 }
 
+struct AccessibilityWindowCandidate {
+    let title: String
+    let bounds: CGRect?
+}
+
+enum AccessibilityWindowMatcher {
+    static func bestMatchIndex(
+        targetTitle: String,
+        targetBounds: CGRect,
+        candidates: [AccessibilityWindowCandidate]
+    ) -> Int? {
+        let normalizedTargetTitle = normalize(targetTitle)
+        let matches: [(index: Int, score: CGFloat)] = candidates.enumerated().compactMap {
+            index, candidate -> (index: Int, score: CGFloat)? in
+            let titleMatches = !normalizedTargetTitle.isEmpty
+                && normalize(candidate.title) == normalizedTargetTitle
+            let frameDifference = candidate.bounds.map {
+                maximumFrameDifference($0, targetBounds)
+            }
+            let frameMatches = frameDifference.map { $0 <= 16 } ?? false
+            guard titleMatches || frameMatches else { return nil }
+
+            let score: CGFloat
+            if frameMatches {
+                score = (frameDifference ?? 0) + (titleMatches ? 0 : 1_000)
+            } else {
+                score = 10_000 + (frameDifference ?? 0)
+            }
+            return (index: index, score: score)
+        }
+        return matches.min { lhs, rhs in lhs.score < rhs.score }?.index
+    }
+
+    private static func normalize(_ title: String) -> String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    }
+
+    private static func maximumFrameDifference(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {
+        max(
+            abs(lhs.minX - rhs.minX),
+            abs(lhs.minY - rhs.minY),
+            abs(lhs.width - rhs.width),
+            abs(lhs.height - rhs.height)
+        )
+    }
+}
+
 @MainActor
 final class WindowService {
+    private typealias CopyWindowIDFunction = @convention(c) (
+        AXUIElement,
+        UnsafeMutablePointer<CGWindowID>
+    ) -> AXError
+
+    private static let copyWindowIDFunction: CopyWindowIDFunction? = {
+        guard let handle = dlopen(nil, RTLD_LAZY),
+              let symbol = dlsym(handle, "_AXUIElementGetWindow") else {
+            return nil
+        }
+        return unsafeBitCast(symbol, to: CopyWindowIDFunction.self)
+    }()
+
     private let logger = Logger(subsystem: "com.local.AltTabber", category: "WindowPreviews")
     private let thumbnailCache = ThumbnailCache()
     private let ignoredOwners = Set([
@@ -183,6 +245,11 @@ final class WindowService {
             return false
         }
 
+        guard PermissionManager.hasAccessibilityAccess else {
+            logger.error("Accessibility permission is unavailable; activating \(item.appName, privacy: .public) without exact window focus")
+            return application.activate()
+        }
+
         let appElement = AXUIElementCreateApplication(item.processID)
         var rawWindows: CFTypeRef?
         let copyResult = AXUIElementCopyAttributeValue(
@@ -192,24 +259,140 @@ final class WindowService {
         )
 
         if copyResult == .success, let axWindows = rawWindows as? [AXUIElement] {
-            for axWindow in axWindows {
-                var rawWindowNumber: CFTypeRef?
-                let result = AXUIElementCopyAttributeValue(
-                    axWindow,
-                    "AXWindowNumber" as CFString,
-                    &rawWindowNumber
+            if let targetWindow = matchingWindow(for: item, in: axWindows) {
+                return focus(
+                    targetWindow,
+                    in: appElement,
+                    application: application,
+                    windowID: item.id
                 )
-                if result == .success,
-                   let number = rawWindowNumber as? NSNumber,
-                   number.uint32Value == item.id {
-                    application.activate()
-                    AXUIElementPerformAction(axWindow, kAXRaiseAction as CFString)
-                    return true
-                }
+            }
+        } else {
+            logger.error("Could not read Accessibility windows for \(item.appName, privacy: .public): AX error \(copyResult.rawValue)")
+        }
+
+        logger.error("Could not resolve Accessibility window \(item.id) for \(item.appName, privacy: .public)")
+        return application.activate()
+    }
+
+    private func matchingWindow(
+        for item: WindowItem,
+        in windows: [AXUIElement]
+    ) -> AXUIElement? {
+        if let exactMatch = windows.first(where: { windowID(for: $0) == item.id }) {
+            return exactMatch
+        }
+
+        let candidates = windows.map {
+            AccessibilityWindowCandidate(title: windowTitle(for: $0), bounds: windowFrame(for: $0))
+        }
+        guard let index = AccessibilityWindowMatcher.bestMatchIndex(
+            targetTitle: item.title,
+            targetBounds: item.bounds,
+            candidates: candidates
+        ) else { return nil }
+        return windows[index]
+    }
+
+    private func focus(
+        _ window: AXUIElement,
+        in applicationElement: AXUIElement,
+        application: NSRunningApplication,
+        windowID: CGWindowID
+    ) -> Bool {
+        let raisedBeforeActivation = AXUIElementPerformAction(
+            window,
+            kAXRaiseAction as CFString
+        )
+        let activated = application.activate()
+        let frontmost = AXUIElementSetAttributeValue(
+            applicationElement,
+            kAXFrontmostAttribute as CFString,
+            kCFBooleanTrue
+        )
+        let focused = AXUIElementSetAttributeValue(
+            applicationElement,
+            kAXFocusedWindowAttribute as CFString,
+            window
+        )
+        let main = AXUIElementSetAttributeValue(
+            window,
+            kAXMainAttribute as CFString,
+            kCFBooleanTrue
+        )
+        let raisedAfterActivation = AXUIElementPerformAction(
+            window,
+            kAXRaiseAction as CFString
+        )
+        _ = AXUIElementSetAttributeValue(
+            window,
+            kAXFocusedAttribute as CFString,
+            kCFBooleanTrue
+        )
+
+        let selectedExactWindow = focused == .success
+            || main == .success
+            || raisedBeforeActivation == .success
+            || raisedAfterActivation == .success
+        if !selectedExactWindow {
+            logger.error("Accessibility could not focus selected window \(windowID)")
+        }
+        return (activated || frontmost == .success) && selectedExactWindow
+    }
+
+    private func windowID(for window: AXUIElement) -> CGWindowID? {
+        if let copyWindowIDFunction = Self.copyWindowIDFunction {
+            var windowID = CGWindowID(0)
+            if copyWindowIDFunction(window, &windowID) == .success, windowID != 0 {
+                return windowID
             }
         }
 
-        return application.activate()
+        var rawWindowNumber: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            window,
+            "AXWindowNumber" as CFString,
+            &rawWindowNumber
+        ) == .success,
+        let number = rawWindowNumber as? NSNumber else { return nil }
+        return number.uint32Value
+    }
+
+    private func windowTitle(for window: AXUIElement) -> String {
+        var rawTitle: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            window,
+            kAXTitleAttribute as CFString,
+            &rawTitle
+        ) == .success else { return "" }
+        return (rawTitle as? String) ?? ""
+    }
+
+    private func windowFrame(for window: AXUIElement) -> CGRect? {
+        var rawPosition: CFTypeRef?
+        var rawSize: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            window,
+            kAXPositionAttribute as CFString,
+            &rawPosition
+        ) == .success,
+        AXUIElementCopyAttributeValue(
+            window,
+            kAXSizeAttribute as CFString,
+            &rawSize
+        ) == .success,
+        let rawPosition,
+        let rawSize,
+        CFGetTypeID(rawPosition) == AXValueGetTypeID(),
+        CFGetTypeID(rawSize) == AXValueGetTypeID() else { return nil }
+
+        let positionValue = rawPosition as! AXValue
+        let sizeValue = rawSize as! AXValue
+        var position = CGPoint.zero
+        var size = CGSize.zero
+        guard AXValueGetValue(positionValue, .cgPoint, &position),
+              AXValueGetValue(sizeValue, .cgSize, &size) else { return nil }
+        return CGRect(origin: position, size: size)
     }
 
     private func number(_ value: Any?) -> NSNumber? {
@@ -284,23 +467,10 @@ final class WindowService {
 
         var titles: [CGWindowID: String] = [:]
         for window in windows {
-            var rawWindowNumber: CFTypeRef?
-            var rawTitle: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(
-                window,
-                "AXWindowNumber" as CFString,
-                &rawWindowNumber
-            ) == .success,
-            let windowNumber = rawWindowNumber as? NSNumber,
-            AXUIElementCopyAttributeValue(
-                window,
-                kAXTitleAttribute as CFString,
-                &rawTitle
-            ) == .success,
-            let title = (rawTitle as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-            !title.isEmpty else { continue }
-
-            titles[windowNumber.uint32Value] = title
+            guard let windowID = windowID(for: window) else { continue }
+            let title = windowTitle(for: window).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty else { continue }
+            titles[windowID] = title
         }
         return titles
     }

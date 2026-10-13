@@ -1,6 +1,120 @@
 import AppKit
 import SwiftUI
 
+struct SwitcherPanelLayoutMetrics {
+    let panelSize: CGSize
+    let previewSize: CGSize
+    let columnCount: Int
+
+    static func calculate(
+        itemCount: Int,
+        screenSize: CGSize,
+        layout: SwitcherLayout,
+        preferredPreviewSize: PreviewSize,
+        requestedColumnCount: Int
+    ) -> SwitcherPanelLayoutMetrics {
+        let spacing: CGFloat = 12
+        let panelChromeWidth: CGFloat = 40
+        let panelChromeHeight: CGFloat = 70
+        let metadataHeight: CGFloat = 44
+        let safeItemCount = max(itemCount, 1)
+        let preferredWidth = preferredPreviewSize.width
+        let preferredHeight = preferredPreviewSize.height
+        let previewAspectRatio = preferredWidth / preferredHeight
+
+        let maximumPanelWidth = max(320, screenSize.width - 48)
+        let panelWidth = min(
+            maximumPanelWidth,
+            max(640, screenSize.width * 0.92)
+        )
+        let maximumPanelHeight = min(
+            max(280, screenSize.height - 48),
+            max(300, screenSize.height * 0.86)
+        )
+        let contentWidth = max(preferredWidth, panelWidth - panelChromeWidth)
+
+        if itemCount == 0 {
+            return SwitcherPanelLayoutMetrics(
+                panelSize: CGSize(width: min(panelWidth, 720), height: 300),
+                previewSize: CGSize(width: preferredWidth, height: preferredHeight),
+                columnCount: 1
+            )
+        }
+
+        if layout == .horizontal {
+            let maximumVisibleItems = max(
+                1,
+                Int((contentWidth + spacing) / (preferredWidth + spacing))
+            )
+            let visibleItems = min(safeItemCount, maximumVisibleItems)
+            let widthFromAvailableSpace = (
+                contentWidth - CGFloat(max(0, visibleItems - 1)) * spacing
+            ) / CGFloat(visibleItems)
+            let maximumPreviewHeight = max(
+                preferredHeight,
+                maximumPanelHeight - panelChromeHeight - metadataHeight
+            )
+            let cardWidth = max(
+                preferredWidth,
+                min(widthFromAvailableSpace, maximumPreviewHeight * previewAspectRatio)
+            )
+            let previewHeight = cardWidth / previewAspectRatio
+            return SwitcherPanelLayoutMetrics(
+                panelSize: CGSize(
+                    width: panelWidth,
+                    height: min(
+                        maximumPanelHeight,
+                        previewHeight + metadataHeight + panelChromeHeight
+                    )
+                ),
+                previewSize: CGSize(width: cardWidth, height: previewHeight),
+                columnCount: safeItemCount
+            )
+        }
+
+        let maximumColumns = max(
+            1,
+            Int((contentWidth + spacing) / (preferredWidth + spacing))
+        )
+        let columns = min(
+            safeItemCount,
+            min(max(1, requestedColumnCount), maximumColumns)
+        )
+        let rows = Int(ceil(Double(safeItemCount) / Double(columns)))
+        let widthFromAvailableSpace = (
+            contentWidth - CGFloat(max(0, columns - 1)) * spacing
+        ) / CGFloat(columns)
+
+        let cardWidth: CGFloat
+        if rows == 1 {
+            let maximumPreviewHeight = max(
+                preferredHeight,
+                maximumPanelHeight - panelChromeHeight - metadataHeight
+            )
+            cardWidth = max(
+                preferredWidth,
+                min(widthFromAvailableSpace, maximumPreviewHeight * previewAspectRatio)
+            )
+        } else {
+            cardWidth = max(preferredWidth, widthFromAvailableSpace)
+        }
+
+        let previewHeight = cardWidth / previewAspectRatio
+        let contentHeight = CGFloat(rows) * (previewHeight + metadataHeight)
+            + CGFloat(max(0, rows - 1)) * spacing
+            + panelChromeHeight
+
+        return SwitcherPanelLayoutMetrics(
+            panelSize: CGSize(
+                width: panelWidth,
+                height: min(maximumPanelHeight, contentHeight)
+            ),
+            previewSize: CGSize(width: cardWidth, height: previewHeight),
+            columnCount: columns
+        )
+    }
+}
+
 @MainActor
 final class SwitcherPanelController {
     private let model: SwitcherModel
@@ -43,58 +157,25 @@ final class SwitcherPanelController {
     }
 
     private func resizeAndCenter() {
-        let itemCount = max(model.windows.count, 1)
         let screen = screenUnderPointer() ?? NSScreen.main
         guard let visibleFrame = screen?.visibleFrame else { return }
-
-        let spacing: CGFloat = 12
-        let cardWidth = settings.previewSize.width
-        let cardHeight = settings.previewSize.height + 44
-        let panelChromeWidth: CGFloat = 40
-        let panelChromeHeight: CGFloat = 58
-        let availableWidth = max(cardWidth + panelChromeWidth, visibleFrame.width - 64)
-        let minimumHeight = cardHeight + panelChromeHeight
-        let availableHeight = max(minimumHeight, visibleFrame.height - 64)
-
-        if settings.layout == .horizontal {
-            let width = min(
-                availableWidth,
-                CGFloat(itemCount) * cardWidth
-                    + CGFloat(max(0, itemCount - 1)) * spacing
-                    + panelChromeWidth
-            )
-            model.setGridColumnCount(itemCount)
-            let origin = NSPoint(
-                x: visibleFrame.midX - width / 2,
-                y: visibleFrame.midY - minimumHeight / 2
-            )
-            panel.setFrame(
-                NSRect(origin: origin, size: NSSize(width: width, height: minimumHeight)),
-                display: true
-            )
-            return
-        }
-
-        let maximumColumns = max(
-            1,
-            Int((availableWidth - panelChromeWidth + spacing) / (cardWidth + spacing))
+        let metrics = SwitcherPanelLayoutMetrics.calculate(
+            itemCount: model.windows.count,
+            screenSize: visibleFrame.size,
+            layout: settings.layout,
+            preferredPreviewSize: settings.previewSize,
+            requestedColumnCount: settings.gridColumns
         )
-        let columns = min(itemCount, min(settings.gridColumns, maximumColumns))
-        let rows = Int(ceil(Double(itemCount) / Double(columns)))
-        model.setGridColumnCount(columns)
-
-        let width = CGFloat(columns) * cardWidth
-            + CGFloat(max(0, columns - 1)) * spacing
-            + panelChromeWidth
-        let contentHeight = CGFloat(rows) * cardHeight
-            + CGFloat(max(0, rows - 1)) * spacing
-            + panelChromeHeight
-        let height = min(availableHeight, contentHeight)
+        model.setGridColumnCount(metrics.columnCount)
+        model.setPreviewSize(metrics.previewSize)
         let origin = NSPoint(
-            x: visibleFrame.midX - width / 2,
-            y: visibleFrame.midY - height / 2
+            x: visibleFrame.midX - metrics.panelSize.width / 2,
+            y: visibleFrame.midY - metrics.panelSize.height / 2
         )
-        panel.setFrame(NSRect(origin: origin, size: NSSize(width: width, height: height)), display: true)
+        panel.setFrame(
+            NSRect(origin: origin, size: metrics.panelSize),
+            display: true
+        )
     }
 
     private func screenUnderPointer() -> NSScreen? {

@@ -6,6 +6,8 @@ final class SwitcherModel: ObservableObject {
     @Published private(set) var windows: [WindowItem] = []
     @Published private(set) var selectedIndex = 0
     @Published private(set) var gridColumnCount = 1
+    @Published private(set) var previewWidth = PreviewSize.standard.width
+    @Published private(set) var previewHeight = PreviewSize.standard.height
 
     var onCommit: ((WindowItem) -> Void)?
     var onCancel: (() -> Void)?
@@ -32,6 +34,11 @@ final class SwitcherModel: ObservableObject {
 
     func setGridColumnCount(_ count: Int) {
         gridColumnCount = max(1, count)
+    }
+
+    func setPreviewSize(_ size: CGSize) {
+        previewWidth = max(1, size.width)
+        previewHeight = max(1, size.height)
     }
 
     func commit() {

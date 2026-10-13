@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private var statusItem: NSStatusItem?
     private weak var launchAtLoginMenuItem: NSMenuItem?
+    private weak var accessibilityMenuItem: NSMenuItem?
     private weak var shortcutStatusMenuItem: NSMenuItem?
     private weak var previewStatusMenuItem: NSMenuItem?
     private var cancellables = Set<AnyCancellable>()
@@ -104,6 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let accessibilityItem = NSMenuItem(title: "Grant Accessibility Access…", action: #selector(requestAccessibility), keyEquivalent: "")
         accessibilityItem.target = self
         menu.addItem(accessibilityItem)
+        accessibilityMenuItem = accessibilityItem
+        updateAccessibilityMenuItem()
 
         let recordingItem = NSMenuItem(title: "Grant Screen Recording Access…", action: #selector(requestScreenRecording), keyEquivalent: "")
         recordingItem.target = self
@@ -182,6 +185,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         previewStatusMenuItem?.title = "Previews: \(status.title)"
     }
 
+    private func updateAccessibilityMenuItem() {
+        let granted = PermissionManager.hasAccessibilityAccess
+        accessibilityMenuItem?.title = granted
+            ? "Accessibility: Granted"
+            : "Grant Accessibility Access…"
+        accessibilityMenuItem?.isEnabled = !granted
+    }
+
     private func cycle(backwards: Bool) {
         if !panelController.isVisible {
             presentSwitcher()
@@ -237,6 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func requestAccessibility() {
         PermissionManager.requestAccessibilityAccess()
+        updateAccessibilityMenuItem()
         startShortcutMonitor(promptIfNeeded: false)
     }
 

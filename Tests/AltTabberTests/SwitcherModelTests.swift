@@ -38,6 +38,15 @@ final class SwitcherModelTests: XCTestCase {
         XCTAssertEqual(model.gridColumnCount, 1)
     }
 
+    func testPreviewSizeNeverCollapsesBelowOnePoint() {
+        let model = SwitcherModel()
+
+        model.setPreviewSize(CGSize(width: 0, height: -10))
+
+        XCTAssertEqual(model.previewWidth, 1)
+        XCTAssertEqual(model.previewHeight, 1)
+    }
+
     func testWindowTitleCanBeEnrichedAfterDiscovery() {
         let model = SwitcherModel()
         var window = makeWindow(id: 42)
