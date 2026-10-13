@@ -8,12 +8,13 @@
   Switch between the windows you actually want—not just the apps that own them.
 
   ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111111?style=for-the-badge&logo=apple)
+  ![Universal](https://img.shields.io/badge/Apple_silicon_%2B_Intel-Universal-555555?style=for-the-badge&logo=apple)
   ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=for-the-badge&logo=swift&logoColor=white)
   ![Version 0.5.4](https://img.shields.io/badge/version-0.5.4-007AFF?style=for-the-badge)
 
   <br><br>
 
-  [![Install AltTabber](https://img.shields.io/badge/Install_AltTabber-v0.5.4-007AFF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Lee337/alt-tabber/releases/latest/download/AltTabber-v0.5.4-macOS.pkg)
+  [![Download AltTabber](https://img.shields.io/badge/Download_for_macOS-v0.5.4-007AFF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Lee337/alt-tabber/releases/latest/download/AltTabber-v0.5.4-macOS.dmg)
 </div>
 
 ---
@@ -24,18 +25,18 @@ No Electron. No web runtime. Just native Swift, AppKit, SwiftUI, and ScreenCaptu
 
 ## Download
 
-Download the installer, open it, and macOS places AltTabber in your Applications folder:
+Download the disk image and install AltTabber the familiar Mac way:
 
-### [Install AltTabber v0.5.4 for macOS](https://github.com/Lee337/alt-tabber/releases/latest/download/AltTabber-v0.5.4-macOS.pkg)
+### [Download AltTabber v0.5.4 for macOS](https://github.com/Lee337/alt-tabber/releases/latest/download/AltTabber-v0.5.4-macOS.dmg)
 
-1. Download and open the installer.
-2. Follow the macOS installation prompt.
-3. Open **AltTabber** from Applications and grant Accessibility and Screen Recording access when requested.
+1. Open the downloaded DMG.
+2. Drag **AltTabber** onto the **Applications** folder shown beside it.
+3. Open AltTabber from Applications and grant Accessibility and Screen Recording access when requested.
 
-Prefer a portable archive? [Download the ZIP instead](https://github.com/Lee337/alt-tabber/releases/latest/download/AltTabber-v0.5.4-macOS.zip), unzip it, and move **AltTabber.app** into Applications.
+Prefer another format? Download the [PKG installer](https://github.com/Lee337/alt-tabber/releases/latest/download/AltTabber-v0.5.4-macOS.pkg) or [portable ZIP](https://github.com/Lee337/alt-tabber/releases/latest/download/AltTabber-v0.5.4-macOS.zip).
 
 > [!IMPORTANT]
-> This early release is ad-hoc signed and the installer is not yet notarized by Apple. macOS may show a security warning. If it does, Control-click the downloaded installer and choose **Open**, or use **System Settings → Privacy & Security → Open Anyway**. A Developer ID-signed and notarized release is planned.
+> This early release is ad-hoc signed and is not yet notarized by Apple. On first launch, Control-click **AltTabber** in Applications and choose **Open**. If macOS still blocks it, use **System Settings → Privacy & Security → Open Anyway**. A Developer ID-signed and notarized release is planned.
 
 ## Why AltTabber?
 
@@ -78,7 +79,7 @@ git clone https://github.com/Lee337/alt-tabber.git
 cd alt-tabber
 make test
 make app
-make installer
+make dmg
 open dist/AltTabber.app
 ```
 
@@ -152,7 +153,9 @@ The project uses Swift Package Manager and has no third-party runtime dependenci
 make build   # Debug build
 make test    # Run the test suite
 make app     # Create a signed release app bundle
+make dmg     # Create a drag-to-Applications disk image
 make installer # Create a macOS installer package in dist/
+make release-artifacts # Build DMG, PKG, ZIP, and SHA-256 checksums
 make run     # Build and open the app
 make clean   # Remove local build output
 ```

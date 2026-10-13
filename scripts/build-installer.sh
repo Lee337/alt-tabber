@@ -7,7 +7,14 @@ VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO
 APP_DIR="$ROOT_DIR/dist/AltTabber.app"
 OUTPUT_PATH="$ROOT_DIR/dist/AltTabber-v${VERSION}-macOS.pkg"
 
-/bin/zsh "$ROOT_DIR/scripts/build-app.sh"
+if [[ "${SKIP_APP_BUILD:-0}" != "1" ]]; then
+    /bin/zsh "$ROOT_DIR/scripts/build-app.sh"
+fi
+
+if [[ ! -d "$APP_DIR" ]]; then
+    echo "Missing app bundle: $APP_DIR" >&2
+    exit 1
+fi
 
 PACKAGE_ARGUMENTS=(
     --component "$APP_DIR"

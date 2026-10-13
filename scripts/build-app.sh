@@ -5,8 +5,12 @@ ROOT_DIR="${0:A:h:h}"
 APP_DIR="$ROOT_DIR/dist/AltTabber.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 cd "$ROOT_DIR"
-/bin/zsh scripts/swift.sh build -c release
-BIN_DIR="$(/bin/zsh scripts/swift.sh build -c release --show-bin-path)"
+BUILD_ARGUMENTS=(-c release)
+if [[ "${ALT_TABBER_UNIVERSAL:-1}" == "1" ]]; then
+    BUILD_ARGUMENTS+=(--arch arm64 --arch x86_64)
+fi
+/bin/zsh scripts/swift.sh build "${BUILD_ARGUMENTS[@]}"
+BIN_DIR="$(/bin/zsh scripts/swift.sh build "${BUILD_ARGUMENTS[@]}" --show-bin-path)"
 
 mkdir -p "$CONTENTS_DIR/MacOS" "$CONTENTS_DIR/Resources"
 cp "$BIN_DIR/AltTabber" "$CONTENTS_DIR/MacOS/AltTabber"
