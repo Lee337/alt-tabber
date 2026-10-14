@@ -15,6 +15,7 @@ private struct ThumbnailCaptureRequest: @unchecked Sendable {
     let windowID: CGWindowID
     let bounds: CGRect
     let window: SCWindow
+    let scale: Double
 }
 
 private struct ThumbnailCapture: @unchecked Sendable {
@@ -88,19 +89,80 @@ final class WindowService {
 
     private let logger = Logger(subsystem: "com.local.AltTabber", category: "WindowPreviews")
     private let thumbnailCache = ThumbnailCache()
+    private var history: [CGWindowID: (pid_t, Date, Date)] = [:]
+    var showSmallWindows = false
+    var captureScale = 1.0
+    var cacheSeconds: Double = 600 {
+        didSet { thumbnailCache.timeToLive = cacheSeconds }
+    }
     private let ignoredOwners = Set([
         "AltTabber", "Dock", "Window Server", "Control Center", "Notification Center"
     ])
 
-    func visibleWindows() -> [WindowItem] {
-        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+    func visibleWindows() -> [WindowItem] { discoverWindows(onScreenOnly: true) }
+
+    func entries() -> [SelectionEntry] {
+        let windows = discoverWindows(onScreenOnly: false)
+        let owners = Set(windows.map(\.processID))
+        let applications = NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && $0.processIdentifier != getpid() && !owners.contains($0.processIdentifier)
+        }.map { app in
+            SelectionEntry.application(ApplicationItem(processID: app.processIdentifier,
+                name: app.localizedName ?? "Application", bundleIdentifier: app.bundleIdentifier,
+                icon: app.icon ?? NSImage()))
+        }
+        return windows.map(SelectionEntry.window) + applications
+    }
+
+    var frontmostIsFullscreen: Bool {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return false }
+        var raw: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(AXUIElementCreateApplication(app.processIdentifier), kAXFocusedWindowAttribute as CFString, &raw) == .success,
+              let raw, CFGetTypeID(raw) == AXUIElementGetTypeID() else { return false }
+        var flag: CFTypeRef?
+        _ = AXUIElementCopyAttributeValue(raw as! AXUIElement, "AXFullScreen" as CFString, &flag)
+        return flag as? Bool ?? false
+    }
+
+    func focusedWindowID() -> CGWindowID? {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
+        var raw: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(AXUIElementCreateApplication(app.processIdentifier), kAXFocusedWindowAttribute as CFString, &raw) == .success,
+              let raw, CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
+        return windowID(for: raw as! AXUIElement)
+    }
+
+    func markUsed(_ item: WindowItem) {
+        let created = history[item.id]?.1 ?? Date()
+        history[item.id] = (item.processID, created, Date())
+    }
+
+    func accessibilityWindow(for item: WindowItem) -> AXUIElement? {
+        let app = AXUIElementCreateApplication(item.processID)
+        var raw: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw) == .success,
+              let windows = raw as? [AXUIElement] else { return nil }
+        // Prefer exact IDs. Apps without IDs require one unambiguous title-and-frame match.
+        if let exact = windows.first(where: { windowID(for: $0) == item.id }) { return exact }
+        guard windows.allSatisfy({ windowID(for: $0) == nil }) else { return nil }
+        let matches = windows.filter { candidate in
+            guard let frame = windowFrame(for: candidate) else { return false }
+            let title = windowTitle(for: candidate).trimmingCharacters(in: .whitespacesAndNewlines)
+            return title == item.title && abs(frame.minX - item.bounds.minX) <= 2 && abs(frame.minY - item.bounds.minY) <= 2
+                && abs(frame.width - item.bounds.width) <= 2 && abs(frame.height - item.bounds.height) <= 2
+        }
+        return matches.count == 1 ? matches[0] : nil
+    }
+
+    func discoverWindows(onScreenOnly: Bool) -> [WindowItem] {
+        let options: CGWindowListOption = onScreenOnly ? [.optionOnScreenOnly, .excludeDesktopElements] : [.optionAll, .excludeDesktopElements]
         guard let rawWindows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return []
         }
 
         var seen = Set<CGWindowID>()
         var accessibilityTitleCache: [pid_t: [CGWindowID: String]] = [:]
-        return rawWindows.compactMap { entry in
+        var items: [WindowItem] = rawWindows.compactMap { entry in
             guard
                 let windowID = number(entry[kCGWindowNumber as String])?.uint32Value,
                 let processID = number(entry[kCGWindowOwnerPID as String])?.int32Value,
@@ -110,9 +172,11 @@ final class WindowService {
                 let bounds = CGRect(dictionaryRepresentation: boundsValue as! CFDictionary),
                 layer == 0,
                 processID != getpid(),
+                let runningApp = NSRunningApplication(processIdentifier: processID),
+                runningApp.activationPolicy == .regular,
                 !ignoredOwners.contains(owner),
-                bounds.width >= 100,
-                bounds.height >= 80,
+                bounds.width >= (showSmallWindows ? 1 : 100),
+                bounds.height >= (showSmallWindows ? 1 : 80),
                 seen.insert(windowID).inserted
             else { return nil }
 
@@ -148,6 +212,76 @@ final class WindowService {
                 thumbnail: nil
             )
         }
+        var accessibilityIDs = Set<CGWindowID>()
+        var byID = Dictionary(items.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { a, _ in a })
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular && app.processIdentifier != getpid() {
+            var raw: CFTypeRef?
+            let element = AXUIElementCreateApplication(app.processIdentifier)
+            guard AXUIElementCopyAttributeValue(element, kAXWindowsAttribute as CFString, &raw) == .success,
+                  let windows = raw as? [AXUIElement] else { continue }
+            for window in windows {
+                guard let id = windowID(for: window), let bounds = windowFrame(for: window) else { continue }
+                accessibilityIDs.insert(id)
+                var value: CFTypeRef?
+                func flag(_ key: String) -> Bool {
+                    value = nil
+                    _ = AXUIElementCopyAttributeValue(window, key as CFString, &value)
+                    return value as? Bool ?? false
+                }
+                let minimized = flag(kAXMinimizedAttribute)
+                if onScreenOnly && byID[id] == nil { continue }
+                if byID[id] == nil {
+                    guard bounds.width >= (showSmallWindows ? 1 : 100), bounds.height >= (showSmallWindows ? 1 : 80) else { continue }
+                    byID[id] = items.count
+                    items.append(WindowItem(id: id, processID: app.processIdentifier, appName: app.localizedName ?? "Application",
+                        title: windowTitle(for: window), bounds: bounds, appIcon: app.icon ?? NSImage(), thumbnail: nil))
+                }
+                if let index = byID[id] {
+                    items[index].isMinimized = minimized
+                    items[index].isHidden = app.isHidden
+                    items[index].isFullscreen = flag("AXFullScreen")
+                    let title = windowTitle(for: window)
+                    if !title.isEmpty { items[index].title = title }
+                }
+            }
+        }
+        let onScreen = Set((CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value })
+        let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let frontmostID = focusedWindowID() ?? items.first { $0.processID == frontmostPID && !$0.isMinimized }?.id
+        for index in items.indices {
+            let item = items[index]
+            let previous = history[item.id].flatMap { $0.0 == item.processID ? $0 : nil }
+            let created = previous?.1 ?? Date()
+            let used = item.id == frontmostID ? Date() : previous?.2 ?? .distantPast
+            history[item.id] = (item.processID, created, used)
+            items[index].isOnScreen = onScreen.contains(item.id)
+            items[index].createdAt = created
+            items[index].lastUsedAt = used
+            items[index].bundleIdentifier = NSRunningApplication(processIdentifier: item.processID)?.bundleIdentifier
+            items[index].spaceIDs = PlatformCapabilities.shared.spaces(for: item.id)
+            var displays = [CGDirectDisplayID](repeating: 0, count: 16)
+            var count: UInt32 = 0
+            if CGGetDisplaysWithRect(item.bounds, 16, &displays, &count) == .success, count > 0 {
+                items[index].displayID = displays[0]
+            }
+        }
+        // CoreGraphics includes retained backing surfaces and helper windows. Off-screen
+        // entries must be confirmed by Accessibility rather than presented as live windows.
+        items = items.filter { $0.isOnScreen || accessibilityIDs.contains($0.id) }
+        let liveIDs = Set(items.map(\.id))
+        history = history.filter { liveIDs.contains($0.key) }
+        let groups = Dictionary(grouping: items.indices.filter { !items[$0].isMinimized && !items[$0].isHidden }, by: { index in
+            let w = items[index]
+            return "\(w.processID):\(w.bounds.minX):\(w.bounds.minY):\(w.bounds.width):\(w.bounds.height)"
+        })
+        for (group, indices) in groups where indices.count > 1 {
+            let visible = indices.filter { items[$0].isOnScreen }
+            let representative = visible.first ?? indices.max { items[$0].lastUsedAt < items[$1].lastUsedAt }!
+            for index in indices where !items[index].isOnScreen || index == representative {
+                items[index].nativeTabGroup = group
+            }
+        }
+        return items
     }
 
     func loadThumbnails(for items: [WindowItem]) async -> ThumbnailLoadResult {
@@ -177,7 +311,7 @@ final class WindowService {
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(
                 true,
-                onScreenWindowsOnly: true
+                onScreenWindowsOnly: false
             )
             let captureWindows = Dictionary(
                 uniqueKeysWithValues: content.windows.map { ($0.windowID, $0) }
@@ -197,7 +331,8 @@ final class WindowService {
                 requests.append(ThumbnailCaptureRequest(
                     windowID: item.id,
                     bounds: item.bounds,
-                    window: window
+                    window: window,
+                    scale: captureScale
                 ))
             }
 
@@ -232,6 +367,34 @@ final class WindowService {
                 titles: [:],
                 failureDescription: cachedImages.isEmpty ? error.localizedDescription : nil
             )
+        }
+    }
+
+    func captureLargePreview(for item: WindowItem, maximumPixelSize: CGSize) async -> NSImage? {
+        guard !item.isMinimized, !item.isHidden, !Task.isCancelled else { return nil }
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
+            guard !Task.isCancelled, let window = content.windows.first(where: { $0.windowID == item.id }) else { return nil }
+            let sourceSize = window.frame.width > 0 && window.frame.height > 0 ? window.frame.size : item.bounds.size
+            let width = max(1, sourceSize.width)
+            let height = max(1, sourceSize.height)
+            let scale = min(2, 4096 / width, 3072 / height,
+                            max(1, maximumPixelSize.width) / width,
+                            max(1, maximumPixelSize.height) / height)
+            let configuration = SCStreamConfiguration()
+            configuration.width = max(1, Int((width * scale).rounded()))
+            configuration.height = max(1, Int((height * scale).rounded()))
+            configuration.scalesToFit = true
+            configuration.showsCursor = false
+            let image = try await SCScreenshotManager.captureImage(
+                contentFilter: SCContentFilter(desktopIndependentWindow: window),
+                configuration: configuration
+            )
+            guard !Task.isCancelled else { return nil }
+            return NSImage(cgImage: image, size: .zero)
+        } catch {
+            logger.debug("Large preview capture failed for window \(item.id): \(error.localizedDescription, privacy: .public)")
+            return nil
         }
     }
 
@@ -300,6 +463,8 @@ final class WindowService {
         application: NSRunningApplication,
         windowID: CGWindowID
     ) -> Bool {
+        _ = application.unhide()
+        _ = AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
         let raisedBeforeActivation = AXUIElementPerformAction(
             window,
             kAXRaiseAction as CFString
@@ -429,8 +594,8 @@ final class WindowService {
     ) async -> ThumbnailCapture {
         let filter = SCContentFilter(desktopIndependentWindow: request.window)
         let configuration = SCStreamConfiguration()
-        configuration.width = min(Int(request.bounds.width * 2), 900)
-        configuration.height = min(Int(request.bounds.height * 2), 600)
+        configuration.width = min(Int(request.bounds.width * request.scale), 900)
+        configuration.height = min(Int(request.bounds.height * request.scale), 600)
         configuration.scalesToFit = true
         configuration.showsCursor = false
 

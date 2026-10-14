@@ -22,7 +22,7 @@
 
 AltTabber brings a visual, window-first workflow to **Option-Tab**. Hold **Option**, tap **Tab** to move through live previews, then release **Option** to bring the selected window forward.
 
-No Electron. No web runtime. Just native Swift, AppKit, SwiftUI, and ScreenCaptureKit.
+No Electron or web runtime. The app is native Swift, AppKit, SwiftUI, ScreenCaptureKit, and Sparkle.
 
 ## Download
 
@@ -72,6 +72,12 @@ AltTabber puts every window on equal footing:
 | 🚀 | Launch at Login | Keep AltTabber ready from the moment you sign in |
 | 🎯 | Clickable cards | Keyboard when you want speed; pointer when you want precision |
 
+The current source build also adds searchable settings, window actions, optional Dock previews and Command-Tab overlays, per-surface appearance, live video, gestures, folder/calendar/media widgets, AppleScript and a bundled CLI. The new surfaces and network features start disabled. The published v0.5.4 download above does not contain this source work.
+
+The source build now includes a first, opt-in AltTabber Dock under **Settings → Custom Dock**. It can show running apps and pinned applications, files, folders, links, and separators; supports multiple profiles, app-focus profile switching, display assignment, drag reordering, icon hover previews, basic context actions, and a persistent file tray. The system Dock remains available while the replacement-Dock features are developed.
+
+While holding **Option** in the switcher, tap **§** to toggle a large preview of the selected window. You can choose **Control** or **either key** under **Settings → Window Switcher → Shortcuts**. The preview fits the available display and fetches a higher-resolution image for the selected window. Keep holding Option and cycling to update it; releasing Option selects the window as usual. When search text is entered, **Command-P** toggles the preview instead. Change the Command key in the same settings section. If a window image cannot be captured, the preview shows the app icon and an explanation.
+
 ## Build from source
 
 ### Requirements
@@ -115,6 +121,8 @@ Open **Settings…** from the menu-bar icon to configure:
 - Window-title visibility
 - Launch at Login
 
+Settings now has a searchable sidebar and opt-in controls for Dock previews, Command-Tab, gestures, widgets, online lyrics, and automatic update checks. See [automation commands](docs/automation.md) and [update signing](docs/updates.md).
+
 The default layout is a four-column wrapping grid designed to keep a large window collection readable at a glance.
 
 ## Permissions
@@ -125,6 +133,8 @@ AltTabber asks only for the macOS permissions required by its native features:
 |---|---|---|
 | **Accessibility** | Raising and focusing the exact selected window | AltTabber can activate the app, but exact window focus may be limited |
 | **Screen Recording** | Capturing live window thumbnails and richer titles | Window cards fall back to application icons |
+| **Calendar** | Reading upcoming events when its widget is enabled | Calendar widget stays empty |
+| **Automation** | Music and Spotify playback fallback when media controls are used | Other available media controls remain available |
 
 Permission prompts are not repeatedly opened when access is missing. Use the menu-bar permission actions or **Settings…** to request access again.
 
@@ -143,16 +153,21 @@ Then add `/Applications/AltTabber.app` again, enable it, and relaunch AltTabber.
 ```text
 Sources/AltTabber/
 ├── AppDelegate.swift              App lifecycle, menu bar, and orchestration
-├── GlobalShortcutMonitor.swift    Native Option-Tab registration
-├── WindowService.swift            Window discovery, previews, titles, and focus
+├── GlobalShortcutMonitor.swift    Native switcher shortcut registration
+├── WindowService.swift            Combined CG, AX, and capture discovery
+├── WindowQuery.swift              Shared filters, sorting, and entry identity
+├── WindowActions.swift            Shared, revalidated window actions
+├── DockIntegration.swift          Dock and Command-Tab observers
+├── LivePreviewService.swift       Optional window video streams
+├── WidgetServices.swift           Folder, calendar, and media providers
 ├── SwitcherPanelController.swift  Multi-display overlay positioning
 ├── SwitcherModel.swift            Selection and window state
 ├── SwitcherView.swift             SwiftUI window grid and cards
-├── SettingsView.swift             Appearance and permission settings
+├── SettingsView.swift             Searchable settings and permissions
 └── AppSettings.swift              Persistent preferences and runtime status
 ```
 
-The project uses Swift Package Manager and has no third-party runtime dependencies.
+The project uses Swift Package Manager. Sparkle 2 is its updater dependency; without an AltTabber signing key and feed configured, update checks open the release page.
 
 ## Development
 

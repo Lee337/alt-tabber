@@ -7,17 +7,30 @@ final class GlobalShortcutMonitor {
     var onCycle: ((Bool) -> Void)?
     var onCommit: (() -> Void)?
     var onCancel: (() -> Void)?
+    var onAlternate: (() -> Void)?
+    var onPreviewKey: (() -> Void)?
+    var shortcut = Shortcut(keyCode: 48, modifier: .option)
+    var backwardKeyCode = 48
+    var previewKeyCode: Int? = 10
+    var alternate = Shortcut(keyCode: 0, modifier: .control, enabled: false)
+    private var alternateHotKey: EventHotKeyRef?
+    var initializerFlag: CGEventFlags {
+        switch shortcut.modifier { case .option: .maskAlternate; case .control: .maskControl; case .command: .maskCommand }
+    }
+    private func carbonModifier(_ modifier: ShortcutModifier) -> UInt32 {
+        switch modifier { case .option: UInt32(optionKey); case .control: UInt32(controlKey); case .command: UInt32(cmdKey) }
+    }
 
     private enum HotKeyID {
         static let signature: OSType = 0x4154_5442 // "ATTB"
         static let forward: UInt32 = 1
         static let backward: UInt32 = 2
-        static let cancel: UInt32 = 3
+        static let previewKey: UInt32 = 5
     }
 
     private var forwardHotKey: EventHotKeyRef?
     private var backwardHotKey: EventHotKeyRef?
-    private var cancelHotKey: EventHotKeyRef?
+    private var previewHotKey: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
     private var modifierPollingTask: Task<Void, Never>?
     private var isSwitching = false
@@ -61,31 +74,28 @@ final class GlobalShortcutMonitor {
         let target = GetApplicationEventTarget()
         let options = UInt32(kEventHotKeyExclusive)
         let forwardStatus = RegisterEventHotKey(
-            UInt32(kVK_Tab),
-            UInt32(optionKey),
+            UInt32(shortcut.keyCode),
+            carbonModifier(shortcut.modifier),
             EventHotKeyID(signature: HotKeyID.signature, id: HotKeyID.forward),
             target,
             options,
             &forwardHotKey
         )
         let backwardStatus = RegisterEventHotKey(
-            UInt32(kVK_Tab),
-            UInt32(optionKey | shiftKey),
+            UInt32(backwardKeyCode),
+            carbonModifier(shortcut.modifier) | (backwardKeyCode == shortcut.keyCode ? UInt32(shiftKey) : 0),
             EventHotKeyID(signature: HotKeyID.signature, id: HotKeyID.backward),
             target,
             options,
             &backwardHotKey
         )
-        let cancelStatus = RegisterEventHotKey(
-            UInt32(kVK_Escape),
-            UInt32(optionKey),
-            EventHotKeyID(signature: HotKeyID.signature, id: HotKeyID.cancel),
-            target,
-            options,
-            &cancelHotKey
-        )
 
-        guard forwardStatus == noErr, backwardStatus == noErr, cancelStatus == noErr else {
+        if alternate.enabled {
+            let status = RegisterEventHotKey(UInt32(alternate.keyCode), carbonModifier(alternate.modifier),
+                EventHotKeyID(signature: HotKeyID.signature, id: 4), target, options, &alternateHotKey)
+            if status != noErr { stop(); return false }
+        }
+        guard forwardStatus == noErr, backwardStatus == noErr else {
             stop()
             return false
         }
@@ -93,18 +103,16 @@ final class GlobalShortcutMonitor {
     }
 
     func stop() {
-        modifierPollingTask?.cancel()
-        modifierPollingTask = nil
-        isSwitching = false
+        endSession()
 
+        if let alternateHotKey { UnregisterEventHotKey(alternateHotKey) }
+        alternateHotKey = nil
         if let forwardHotKey { UnregisterEventHotKey(forwardHotKey) }
         if let backwardHotKey { UnregisterEventHotKey(backwardHotKey) }
-        if let cancelHotKey { UnregisterEventHotKey(cancelHotKey) }
         if let eventHandler { RemoveEventHandler(eventHandler) }
 
         forwardHotKey = nil
         backwardHotKey = nil
-        cancelHotKey = nil
         eventHandler = nil
     }
 
@@ -128,8 +136,10 @@ final class GlobalShortcutMonitor {
             beginOrContinueSwitching(backwards: false)
         case HotKeyID.backward:
             beginOrContinueSwitching(backwards: true)
-        case HotKeyID.cancel where isSwitching:
-            cancelSwitching()
+        case 4:
+            onAlternate?()
+        case HotKeyID.previewKey:
+            if isSwitching { onPreviewKey?() }
         default:
             return OSStatus(eventNotHandledErr)
         }
@@ -138,8 +148,30 @@ final class GlobalShortcutMonitor {
 
     private func beginOrContinueSwitching(backwards: Bool) {
         isSwitching = true
+        registerPreviewKeyIfNeeded()
         onCycle?(backwards)
         startModifierPollingIfNeeded()
+    }
+
+    private func registerPreviewKeyIfNeeded() {
+        guard Self.canRegisterPreviewKey(shortcut: shortcut, backwardKeyCode: backwardKeyCode,
+                                         previewKeyCode: previewKeyCode),
+              let previewKeyCode, previewHotKey == nil else { return }
+        let status = RegisterEventHotKey(UInt32(previewKeyCode), UInt32(optionKey),
+            EventHotKeyID(signature: HotKeyID.signature, id: HotKeyID.previewKey),
+            GetApplicationEventTarget(), UInt32(kEventHotKeyExclusive), &previewHotKey)
+        if status != noErr { previewHotKey = nil }
+    }
+
+    static func canRegisterPreviewKey(shortcut: Shortcut, backwardKeyCode: Int, previewKeyCode: Int?) -> Bool {
+        guard let previewKeyCode else { return false }
+        return shortcut.modifier == .option && shortcut.keyCode != previewKeyCode
+            && backwardKeyCode != previewKeyCode
+    }
+
+    private func unregisterPreviewKey() {
+        if let previewHotKey { UnregisterEventHotKey(previewHotKey) }
+        previewHotKey = nil
     }
 
     private func startModifierPollingIfNeeded() {
@@ -149,7 +181,7 @@ final class GlobalShortcutMonitor {
                 try? await Task.sleep(for: .milliseconds(30))
                 guard let self, !Task.isCancelled else { return }
                 let flags = CGEventSource.flagsState(.combinedSessionState)
-                if !flags.contains(.maskAlternate) {
+                if !flags.contains(self.initializerFlag) {
                     self.commitSwitching()
                     return
                 }
@@ -161,13 +193,20 @@ final class GlobalShortcutMonitor {
         guard isSwitching else { return }
         isSwitching = false
         modifierPollingTask = nil
+        unregisterPreviewKey()
         onCommit?()
     }
 
-    private func cancelSwitching() {
+    func cancelSwitching() {
+        guard isSwitching else { return }
+        endSession()
+        onCancel?()
+    }
+
+    func endSession() {
         isSwitching = false
         modifierPollingTask?.cancel()
         modifierPollingTask = nil
-        onCancel?()
+        unregisterPreviewKey()
     }
 }

@@ -1,0 +1,35 @@
+#!/bin/zsh
+set -euo pipefail
+if [[ $# -eq 0 || "$1" == "--help" ]]; then
+    cat <<'HELP'
+Usage: alttabber COMMAND [JSON_ARGUMENTS]
+Commands: help, show-switcher, show-preview, hide-preview, list-windows,
+          list-apps, active-window, get-window, window-action
+Examples:
+  alttabber list-windows '{"bundle":"com.apple.finder"}'
+  alttabber window-action '{"window":"active","action":"left"}'
+  alttabber window-action '{"window":123,"action":"close"}'
+Query output is JSON. Errors return a nonzero exit status.
+HELP
+    exit 0
+fi
+SCRIPT_DIR="${0:A:h}"
+if [[ "$SCRIPT_DIR" == */Contents/Resources/bin ]]; then
+    APP_PATH="${SCRIPT_DIR:h:h:h}"
+elif [[ -d "$SCRIPT_DIR/../dist/AltTabber.app" ]]; then
+    APP_PATH="${SCRIPT_DIR:h}/dist/AltTabber.app"
+else
+    APP_PATH="AltTabber"
+fi
+ARGUMENTS='{}'
+if (( $# >= 2 )); then ARGUMENTS="$2"; fi
+exec /usr/bin/osascript - "$APP_PATH" "$1" "$ARGUMENTS" <<'APPLESCRIPT'
+on run argv
+    set targetApp to item 1 of argv
+    set commandName to item 2 of argv
+    set argumentJSON to item 3 of argv
+    tell application targetApp
+        return «event ATBRexec» commandName given «class args»:argumentJSON
+    end tell
+end run
+APPLESCRIPT

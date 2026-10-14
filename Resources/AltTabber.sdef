@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dictionary title="AltTabber">
+  <suite name="AltTabber Suite" code="ATBR" description="Window switching, Dock previews, and window operations.">
+    <command name="perform command" code="ATBRexec" description="Execute an AltTabber command. Use help to list commands; arguments and query results are JSON.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" description="Command name, for example list-windows or window-action."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON object containing app, bundle, pid, window, or action."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result. Failures raise an AppleScript error."/>
+    </command>
+    <command name="show preview" code="ATBRshpr" description="Show a Dock-style preview for an application.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="hide preview" code="ATBRhipr" description="Hide any active overlay.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="show switcher" code="ATBRshsw" description="Open the window switcher.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="list windows" code="ATBRliwi" description="Return JSON windows.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="get windows" code="ATBRgews" description="Return JSON windows.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="list apps" code="ATBRliap" description="Return JSON applications.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="get active window" code="ATBRgeaw" description="Return the active window as JSON.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="get window" code="ATBRgewi" description="Return one window as JSON.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="get help" code="ATBRgehe" description="Return available commands as JSON.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="focus window" code="ATBRfowi" description="Focus a window.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="minimize window" code="ATBRmiwi" description="Minimize or restore a window.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="close window" code="ATBRclwi" description="Close a window using its ordinary close button.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="maximize window" code="ATBRmawi" description="Maximize or restore a window.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="hide window" code="ATBRhiwi" description="Hide or unhide a window's application.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="toggle fullscreen" code="ATBRtofu" description="Toggle full screen for a window.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="center window" code="ATBRcewi" description="Center a window.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+    <command name="position window" code="ATBRpowi" description="Position a window using an action name in JSON arguments.">
+      <cocoa class="AltTabberScriptCommand"/>
+      <direct-parameter type="text" optional="yes" description="Application name, numeric window ID, or active as appropriate."/>
+      <parameter name="with arguments" code="args" type="text" optional="yes" description="JSON arguments and filters."><cocoa key="arguments"/></parameter>
+      <result type="text" description="JSON result."/>
+    </command>
+  </suite>
+</dictionary>

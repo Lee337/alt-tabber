@@ -24,6 +24,10 @@
     <string>11</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
+    <key>NSAppleScriptEnabled</key><true/>
+    <key>OSAScriptingDefinition</key><string>AltTabber.sdef</string>
+    <key>NSCalendarsFullAccessUsageDescription</key><string>AltTabber shows your upcoming events when you enable the Calendar widget.</string>
+    <key>NSAppleEventsUsageDescription</key><string>AltTabber controls playback in Music and Spotify when you enable media widgets.</string>
     <key>LSUIElement</key>
     <true/>
     <key>NSScreenCaptureUsageDescription</key>

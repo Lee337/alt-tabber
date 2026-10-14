@@ -11,7 +11,7 @@ final class ThumbnailCache {
         let expiresAt: Date
     }
 
-    private let timeToLive: TimeInterval
+    var timeToLive: TimeInterval { didSet { if oldValue != timeToLive { entries.removeAll() } } }
     private let now: () -> Date
     private var entries: [CGWindowID: Entry] = [:]
 
